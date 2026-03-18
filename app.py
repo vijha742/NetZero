@@ -9,7 +9,14 @@ import streamlit as st
 import sys
 import os
 import time
+import matplotlib
 import matplotlib.pyplot as plt
+
+# Configure matplotlib to prevent memory issues
+matplotlib.use('Agg')  # Use non-interactive backend
+plt.rcParams['figure.max_open_warning'] = 0  # Disable warning for many figures
+plt.rcParams['figure.dpi'] = 100  # Set reasonable default DPI
+plt.rcParams['savefig.dpi'] = 100  # Set reasonable save DPI
 
 # Add src to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
@@ -361,25 +368,84 @@ if st.session_state.optimization_complete:
     with tab2:
         st.subheader("Optimization Progress")
         
-        # Fitness evolution
-        fig, ax = plot_fitness_evolution(history)
-        st.pyplot(fig)
-        plt.close(fig)
+        # Validate history data before plotting
+        def validate_history(history):
+            """Validate and clean history data to prevent plotting errors."""
+            validated = {}
+            
+            # Check if history is valid
+            if not isinstance(history, dict):
+                st.error("Invalid history data: not a dictionary")
+                return {}
+            
+            for key, values in history.items():
+                if isinstance(values, list):
+                    # Convert to list if needed
+                    validated[key] = list(values)
+                    # Check for extreme values that could cause issues
+                    if key != 'generation' and len(values) > 0:
+                        try:
+                            numeric_values = [float(v) for v in values if v is not None]
+                            if numeric_values:
+                                max_val = max(abs(v) for v in numeric_values)
+                                min_val = min(v for v in numeric_values)
+                                avg_val = sum(numeric_values) / len(numeric_values)
+                                
+                                # Debug output
+                                with st.expander(f"Debug: {key} statistics"):
+                                    st.write(f"Min: {min_val:.2e}, Max: {max_val:.2e}, Avg: {avg_val:.2e}, Count: {len(numeric_values)}")
+                                
+                                if max_val > 1e10:
+                                    st.warning(f"Warning: Extremely large values detected in {key} (max: {max_val:.2e}). Data may be corrupted.")
+                        except (ValueError, TypeError) as e:
+                            st.warning(f"Warning: Could not validate {key}: {e}")
+                else:
+                    validated[key] = values
+            return validated
         
-        # Carbon reduction
-        fig, axes = plot_carbon_reduction(history)
-        st.pyplot(fig)
-        plt.close(fig)
+        validated_history = validate_history(history)
         
-        # Multi-metric evolution
-        fig, axes = plot_multi_metric_evolution(history)
-        st.pyplot(fig)
-        plt.close(fig)
+        # Show history data length for debugging
+        if len(validated_history.get('generation', [])) > 0:
+            st.info(f"Showing optimization data for {len(validated_history['generation'])} generations")
         
-        # Summary
-        fig, axes = create_optimization_summary(history, initial_metrics, final_metrics)
-        st.pyplot(fig)
-        plt.close(fig)
+        try:
+            # Fitness evolution
+            fig, ax = plot_fitness_evolution(validated_history)
+            st.pyplot(fig, width='stretch')
+            plt.close(fig)
+        except Exception as e:
+            st.error(f"Error plotting fitness evolution: {str(e)}")
+        
+        try:
+            # Carbon reduction
+            fig, axes = plot_carbon_reduction(validated_history)
+            st.pyplot(fig, width='stretch')
+            plt.close(fig)
+        except Exception as e:
+            st.error(f"Error plotting carbon reduction: {str(e)}")
+        
+        try:
+            # Multi-metric evolution
+            fig, axes = plot_multi_metric_evolution(validated_history)
+            st.pyplot(fig, width='stretch')
+            plt.close(fig)
+        except Exception as e:
+            st.error(f"Error plotting multi-metric evolution: {str(e)}")
+        
+        try:
+            # Summary
+            # Add additional safety checks
+            if len(validated_history.get('generation', [])) > 0:
+                fig, axes = create_optimization_summary(validated_history, initial_metrics, final_metrics)
+                st.pyplot(fig, width='stretch')
+                plt.close(fig)
+            else:
+                st.warning("No history data available for summary plot")
+        except Exception as e:
+            st.error(f"Error plotting optimization summary: {str(e)}")
+            import traceback
+            st.text(traceback.format_exc())
     
     with tab3:
         st.subheader("Comprehensive Metrics Report")

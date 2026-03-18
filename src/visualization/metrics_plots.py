@@ -8,8 +8,56 @@ This module creates time-series plots showing optimization progress:
 - Population diversity
 """
 
+import matplotlib
+matplotlib.use('Agg')  # Use non-interactive backend
 import matplotlib.pyplot as plt
 import numpy as np
+
+
+def safe_figsize(figsize):
+    """
+    Ensure figure size is safe and reasonable.
+    
+    Args:
+        figsize: Tuple of (width, height)
+        
+    Returns:
+        Tuple of validated (width, height)
+    """
+    try:
+        width = max(1.0, min(float(figsize[0]), 50.0))
+        height = max(1.0, min(float(figsize[1]), 50.0))
+        return (width, height)
+    except (ValueError, TypeError, IndexError):
+        return (12.0, 6.0)  # Default safe size
+
+
+def safe_array(data, name="data"):
+    """
+    Safely convert data to numpy array with validation.
+    
+    Args:
+        data: Input data (list, array, etc.)
+        name: Name for error messages
+        
+    Returns:
+        Validated numpy array
+    """
+    try:
+        arr = np.array(data, dtype=float)
+        # Check for NaN, inf, or extreme values
+        if np.any(np.isnan(arr)) or np.any(np.isinf(arr)):
+            print(f"Warning: {name} contains NaN or inf values, filtering...")
+            arr = np.nan_to_num(arr, nan=0.0, posinf=1e10, neginf=-1e10)
+        # Limit extreme values
+        max_abs = np.max(np.abs(arr))
+        if max_abs > 1e15:
+            print(f"Warning: {name} contains extremely large values (max: {max_abs:.2e}), clipping...")
+            arr = np.clip(arr, -1e15, 1e15)
+        return arr
+    except Exception as e:
+        print(f"Error converting {name} to array: {e}")
+        return np.array([0.0])
 
 
 def plot_fitness_evolution(history, figsize=(12, 6)):
@@ -23,11 +71,23 @@ def plot_fitness_evolution(history, figsize=(12, 6)):
     Returns:
         tuple: (fig, ax)
     """
-    fig, ax = plt.subplots(figsize=figsize)
+    # Validate figure size
+    figsize = safe_figsize(figsize)
+    fig, ax = plt.subplots(figsize=figsize, dpi=100)
     
-    generations = history['generation']
-    best_fitness = history['best_fitness']
-    avg_fitness = history['avg_fitness']
+    generations = safe_array(history.get('generation', []), 'generations')
+    best_fitness = safe_array(history.get('best_fitness', []), 'best_fitness')
+    avg_fitness = safe_array(history.get('avg_fitness', []), 'avg_fitness')
+    
+    # Ensure all arrays have same length
+    min_len = min(len(generations), len(best_fitness), len(avg_fitness))
+    if min_len == 0:
+        ax.text(0.5, 0.5, 'No data available', ha='center', va='center', transform=ax.transAxes)
+        return fig, ax
+    
+    generations = generations[:min_len]
+    best_fitness = best_fitness[:min_len]
+    avg_fitness = avg_fitness[:min_len]
     
     ax.plot(generations, best_fitness, 'b-', linewidth=2, label='Best Fitness')
     ax.plot(generations, avg_fitness, 'r--', linewidth=1.5, label='Average Fitness', alpha=0.7)
@@ -40,7 +100,7 @@ def plot_fitness_evolution(history, figsize=(12, 6)):
     
     # Highlight improvements
     improvements = []
-    prev_best = best_fitness[0]
+    prev_best = best_fitness[0] if len(best_fitness) > 0 else 0
     for i, fit in enumerate(best_fitness):
         if fit > prev_best:
             improvements.append((generations[i], fit))
@@ -67,18 +127,31 @@ def plot_carbon_reduction(history, target_ratio=0.05, figsize=(12, 6)):
     Returns:
         tuple: (fig, ax)
     """
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=figsize)
+    # Validate figure size
+    figsize = safe_figsize(figsize)
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=figsize, dpi=100)
     
-    generations = history['generation']
-    carbon = history['best_carbon']
-    carbon_ratio = history['best_carbon_ratio']
+    generations = safe_array(history.get('generation', []), 'generations')
+    carbon = safe_array(history.get('best_carbon', []), 'carbon')
+    carbon_ratio = safe_array(history.get('best_carbon_ratio', []), 'carbon_ratio')
+    
+    # Ensure all arrays have same length
+    min_len = min(len(generations), len(carbon), len(carbon_ratio))
+    if min_len == 0:
+        ax1.text(0.5, 0.5, 'No data available', ha='center', va='center', transform=ax1.transAxes)
+        ax2.text(0.5, 0.5, 'No data available', ha='center', va='center', transform=ax2.transAxes)
+        return fig, (ax1, ax2)
+    
+    generations = generations[:min_len]
+    carbon = carbon[:min_len]
+    carbon_ratio = carbon_ratio[:min_len]
     
     # Net carbon plot
     ax1.plot(generations, carbon, 'r-', linewidth=2)
     ax1.axhline(y=0, color='green', linestyle='--', linewidth=2, label='Net Zero')
-    ax1.fill_between(generations, carbon, 0, where=(np.array(carbon) > 0), 
+    ax1.fill_between(generations, carbon, 0, where=(carbon > 0).tolist(), 
                      color='red', alpha=0.2, label='Emissions')
-    ax1.fill_between(generations, carbon, 0, where=(np.array(carbon) <= 0),
+    ax1.fill_between(generations, carbon, 0, where=(carbon <= 0).tolist(),
                      color='green', alpha=0.2, label='Carbon Negative')
     
     ax1.set_title('Net Carbon Emissions', fontsize=12, fontweight='bold')
@@ -88,14 +161,14 @@ def plot_carbon_reduction(history, target_ratio=0.05, figsize=(12, 6)):
     ax1.grid(True, alpha=0.3)
     
     # Carbon ratio plot
-    ax2.plot(generations, np.array(carbon_ratio) * 100, 'b-', linewidth=2)
-    ax2.axhline(y=target_ratio * 100, color='green', linestyle='--', linewidth=2, 
+    ax2.plot(generations, carbon_ratio * 100, 'b-', linewidth=2)
+    ax2.axhline(y=target_ratio * 100, color='green', linestyle='--', linewidth=2,
                label=f'Target ({target_ratio*100:.0f}%)')
-    ax2.fill_between(generations, np.array(carbon_ratio) * 100, target_ratio * 100,
-                    where=(np.array(carbon_ratio) > target_ratio), 
+    ax2.fill_between(generations, carbon_ratio * 100, target_ratio * 100,
+                    where=(carbon_ratio > target_ratio).tolist(), 
                     color='red', alpha=0.2, label='Above Target')
-    ax2.fill_between(generations, 0, np.array(carbon_ratio) * 100,
-                    where=(np.array(carbon_ratio) <= target_ratio),
+    ax2.fill_between(generations, 0, carbon_ratio * 100,
+                    where=(carbon_ratio <= target_ratio).tolist(),
                     color='green', alpha=0.2, label='Success Zone')
     
     ax2.set_title('Carbon Ratio Progress', fontsize=12, fontweight='bold')
@@ -121,7 +194,9 @@ def plot_multi_metric_evolution(history, figsize=(14, 10)):
     Returns:
         tuple: (fig, axes)
     """
-    fig, axes = plt.subplots(2, 2, figsize=figsize)
+    # Limit figure size to reasonable values to prevent memory issues
+    figsize = (min(figsize[0], 50), min(figsize[1], 50))
+    fig, axes = plt.subplots(2, 2, figsize=figsize, dpi=100)
     
     generations = history['generation']
     
@@ -177,7 +252,9 @@ def plot_convergence_analysis(history, figsize=(12, 8)):
     Returns:
         tuple: (fig, axes)
     """
-    fig, axes = plt.subplots(2, 2, figsize=figsize)
+    # Limit figure size to reasonable values to prevent memory issues
+    figsize = (min(figsize[0], 50), min(figsize[1], 50))
+    fig, axes = plt.subplots(2, 2, figsize=figsize, dpi=100)
     
     generations = np.array(history['generation'])
     best_fitness = np.array(history['best_fitness'])
@@ -266,15 +343,49 @@ def create_optimization_summary(history, initial_metrics, final_metrics, figsize
     Returns:
         tuple: (fig, axes)
     """
-    fig = plt.figure(figsize=figsize)
-    gs = fig.add_gridspec(2, 3, hspace=0.3, wspace=0.3)
+    # Validate figure size to prevent memory issues
+    figsize = safe_figsize(figsize)
     
-    generations = history['generation']
+    # Create figure with safe parameters
+    try:
+        fig = plt.figure(figsize=figsize, dpi=100)
+        gs = fig.add_gridspec(2, 3, hspace=0.3, wspace=0.3)
+    except Exception as e:
+        print(f"Error creating figure: {e}")
+        # Fallback to very simple figure
+        fig = plt.figure(figsize=(10, 6), dpi=72)
+        gs = fig.add_gridspec(2, 3, hspace=0.3, wspace=0.3)
+    
+    # Validate and safely convert all data to numpy arrays
+    generations = safe_array(history.get('generation', []), 'generations')
+    best_fitness = safe_array(history.get('best_fitness', []), 'best_fitness')
+    avg_fitness = safe_array(history.get('avg_fitness', []), 'avg_fitness')
+    best_carbon_ratio = safe_array(history.get('best_carbon_ratio', []), 'best_carbon_ratio')
+    best_happiness = safe_array(history.get('best_happiness', []), 'best_happiness')
+    diversity = safe_array(history.get('diversity', []), 'diversity')
+    
+    # Ensure all arrays have the same length
+    min_len = min(len(generations), len(best_fitness), len(avg_fitness), 
+                  len(best_carbon_ratio), len(best_happiness), len(diversity))
+    
+    if min_len == 0:
+        # No data to plot, return empty figure
+        ax = fig.add_subplot(111)
+        ax.text(0.5, 0.5, 'No optimization data available', 
+                ha='center', va='center', fontsize=14, transform=ax.transAxes)
+        return fig, fig.axes
+    
+    generations = generations[:min_len]
+    best_fitness = best_fitness[:min_len]
+    avg_fitness = avg_fitness[:min_len]
+    best_carbon_ratio = best_carbon_ratio[:min_len]
+    best_happiness = best_happiness[:min_len]
+    diversity = diversity[:min_len]
     
     # 1. Fitness evolution (top-left, large)
     ax1 = fig.add_subplot(gs[0, :2])
-    ax1.plot(generations, history['best_fitness'], 'b-', linewidth=2.5, label='Best')
-    ax1.plot(generations, history['avg_fitness'], 'r--', linewidth=1.5, label='Average')
+    ax1.plot(generations, best_fitness, 'b-', linewidth=2.5, label='Best')
+    ax1.plot(generations, avg_fitness, 'r--', linewidth=1.5, label='Average')
     ax1.set_title('Fitness Evolution', fontsize=12, fontweight='bold')
     ax1.set_xlabel('Generation')
     ax1.set_ylabel('Fitness Score')
@@ -321,10 +432,10 @@ ${initial_metrics.total_cost:,.0f} → ${final_metrics.total_cost:,.0f}
     
     # 3. Carbon reduction (bottom-left)
     ax3 = fig.add_subplot(gs[1, 0])
-    ax3.plot(generations, np.array(history['best_carbon_ratio']) * 100, 'r-', linewidth=2)
+    ax3.plot(generations, best_carbon_ratio * 100, 'r-', linewidth=2)
     ax3.axhline(y=5, color='green', linestyle='--', linewidth=2, label='Target')
-    ax3.fill_between(generations, 0, np.array(history['best_carbon_ratio']) * 100,
-                    where=(np.array(history['best_carbon_ratio']) <= 0.05),
+    ax3.fill_between(generations, 0, best_carbon_ratio * 100,
+                    where=(best_carbon_ratio <= 0.05).tolist(),
                     color='green', alpha=0.2)
     ax3.set_title('Carbon Ratio Progress', fontsize=11, fontweight='bold')
     ax3.set_xlabel('Generation')
@@ -334,16 +445,16 @@ ${initial_metrics.total_cost:,.0f} → ${final_metrics.total_cost:,.0f}
     
     # 4. Happiness (bottom-middle)
     ax4 = fig.add_subplot(gs[1, 1])
-    ax4.plot(generations, history['best_happiness'], 'g-', linewidth=2)
+    ax4.plot(generations, best_happiness, 'g-', linewidth=2)
     ax4.set_title('Happiness Evolution', fontsize=11, fontweight='bold')
     ax4.set_xlabel('Generation')
     ax4.set_ylabel('Happiness Score')
-    ax4.set_ylim([0, 100])
+    ax4.set_ylim((0, 100))
     ax4.grid(True, alpha=0.3)
     
     # 5. Diversity (bottom-right)
     ax5 = fig.add_subplot(gs[1, 2])
-    ax5.plot(generations, np.array(history['diversity']) * 100, 'purple', linewidth=2)
+    ax5.plot(generations, diversity * 100, 'purple', linewidth=2)
     ax5.set_title('Population Diversity', fontsize=11, fontweight='bold')
     ax5.set_xlabel('Generation')
     ax5.set_ylabel('Diversity (%)')
