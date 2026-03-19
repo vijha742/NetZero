@@ -38,9 +38,19 @@ HARDWARE_PROFILES = {
         "grid_size": 70,
         "population_size": 100,
         "generations": 2000,
-        "use_gpu": True,
+        "use_gpu": True,  # CUDA
         "parallel_fitness": True,
         "expected_runtime_minutes": "2-5 min",
+    },
+    "apple_silicon_m4": {
+        "description": "Optimized for Apple Silicon M4 with MPS GPU",
+        "grid_size": 70,
+        "population_size": 100,
+        "generations": 2000,
+        "use_gpu": True,  # MPS backend
+        "parallel_fitness": True,
+        "expected_runtime_minutes": "2-5 min",
+        "notes": "Uses PyTorch MPS backend for GPU acceleration"
     },
 }
 

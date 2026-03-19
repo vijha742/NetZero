@@ -251,7 +251,8 @@ def calculate_total_emissions_without_offsets(city_grid):
     
     for building_type, props in BUILDING_TYPES.items():
         if props['carbon'] > 0:
-            count = int(xp.sum(grid == building_type))
+            count_tensor = xp.sum(grid == building_type)
+            count = int(count_tensor.item()) if hasattr(count_tensor, 'item') else int(count_tensor)
             total += count * props['carbon']
     
     return total

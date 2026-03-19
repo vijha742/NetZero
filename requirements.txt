@@ -2,6 +2,10 @@
 numpy>=1.21.0
 pandas>=1.3.0
 
+# PyTorch for hardware-accelerated array operations
+# Supports Apple Silicon MPS, NVIDIA CUDA, and CPU
+torch>=2.1.0
+
 # Visualization
 matplotlib>=3.4.0
 seaborn>=0.11.0
@@ -10,7 +14,7 @@ plotly>=5.0.0
 # Streamlit for web dashboard
 streamlit>=1.20.0
 
-# Optional: GPU acceleration (uncomment if you have CUDA)
+# Optional: GPU acceleration (deprecated - now using PyTorch)
 # cupy-cuda11x>=10.0.0  # Replace 11x with your CUDA version (e.g., 117 for CUDA 11.7)
 
 # Jupyter for research notebooks

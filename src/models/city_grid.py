@@ -58,7 +58,9 @@ class CityGrid:
     
     def copy(self):
         """Create a deep copy of this grid."""
-        return CityGrid(size=self.size, grid=self.grid.copy())
+        # PyTorch uses .clone() instead of .copy()
+        grid_copy = self.grid.clone() if hasattr(self.grid, 'clone') else self.grid.copy()
+        return CityGrid(size=self.size, grid=grid_copy)
     
     def get_building_at(self, x, y):
         """
@@ -70,7 +72,8 @@ class CityGrid:
         Returns:
             int: Building type ID
         """
-        return int(self.grid[x, y])
+        val = self.grid[x, y]
+        return int(val.item()) if hasattr(val, 'item') else int(val)
     
     def set_building_at(self, x, y, building_type):
         """
@@ -208,7 +211,13 @@ class CityGrid:
             dict: {building_type: count}
         """
         unique, counts = xp.unique(self.grid, return_counts=True)
-        return {int(bt): int(c) for bt, c in zip(unique, counts)}
+        # Handle PyTorch tensor to Python scalar conversion
+        result = {}
+        for bt, c in zip(unique, counts):
+            bt_val = int(bt.item()) if hasattr(bt, 'item') else int(bt)
+            c_val = int(c.item()) if hasattr(c, 'item') else int(c)
+            result[bt_val] = c_val
+        return result
     
     def get_area_km2(self):
         """
@@ -242,7 +251,8 @@ class CityGrid:
         """
         if new_type is None:
             # Choose random different type
-            current_type = self.grid[x, y]
+            current_val = self.grid[x, y]
+            current_type = int(current_val.item()) if hasattr(current_val, 'item') else int(current_val)
             available_types = [t for t in BUILDING_TYPES.keys() if t != current_type]
             new_type = random.choice(available_types)
         

@@ -19,8 +19,9 @@ def euclidean_distance(x1, y1, x2, y2):
         x2, y2: Coordinates of second point
         
     Returns:
-        Distance between points
+        Distance between points (scalar or tensor)
     """
+    x1, y1, x2, y2 = [float(v) if not hasattr(v, 'shape') else v for v in [x1, y1, x2, y2]]
     return xp.sqrt((x2 - x1)**2 + (y2 - y1)**2)
 
 
@@ -33,8 +34,9 @@ def manhattan_distance(x1, y1, x2, y2):
         x2, y2: Coordinates of second point
         
     Returns:
-        Manhattan distance
+        Manhattan distance (scalar or tensor)
     """
+    x1, y1, x2, y2 = [float(v) if not hasattr(v, 'shape') else v for v in [x1, y1, x2, y2]]
     return xp.abs(x2 - x1) + xp.abs(y2 - y1)
 
 
@@ -105,8 +107,11 @@ def find_neighbors(grid, building_type, distance_threshold, metric='euclidean'):
                 else:
                     dist = manhattan_distance(i, j, tx, ty)
                 
-                if dist <= distance_threshold and dist > 0:  # Exclude self
-                    nearby.append((tx, ty, float(dist)))
+                # Convert tensor to scalar if needed
+                dist_val = float(dist.item()) if hasattr(dist, 'item') else float(dist)
+                
+                if dist_val <= distance_threshold and dist_val > 0:  # Exclude self
+                    nearby.append((tx, ty, dist_val))
             
             if nearby:
                 neighbors[(i, j)] = nearby
@@ -139,13 +144,18 @@ def count_neighbors_in_radius(grid, center_x, center_y, building_types, radius, 
     
     for i in range(min_x, max_x):
         for j in range(min_y, max_y):
-            if grid[i, j] in building_types:
+            # Convert tensor element to int for comparison
+            cell_value = int(grid[i, j].item()) if hasattr(grid[i, j], 'item') else int(grid[i, j])
+            if cell_value in building_types:
                 if metric == 'euclidean':
                     dist = euclidean_distance(center_x, center_y, i, j)
                 else:
                     dist = manhattan_distance(center_x, center_y, i, j)
                 
-                if dist <= radius and dist > 0:  # Exclude self
+                # Convert dist to scalar if needed
+                dist_val = float(dist.item()) if hasattr(dist, 'item') else float(dist)
+                
+                if dist_val <= radius and dist_val > 0:  # Exclude self
                     count += 1
     
     return count
@@ -223,8 +233,11 @@ def calculate_pollution_overlay(grid, pollution_sources, pollution_radius, decay
         pollution_map += intensity
     
     # Normalize to 0-1 range
-    if xp.max(pollution_map) > 0:
-        pollution_map = pollution_map / xp.max(pollution_map)
+    max_val = xp.max(pollution_map)
+    # Handle scalar tensor conversion
+    max_scalar = float(max_val.item()) if hasattr(max_val, 'item') else float(max_val)
+    if max_scalar > 0:
+        pollution_map = pollution_map / max_val
     
     return pollution_map
 
@@ -244,11 +257,12 @@ def calculate_grid_statistics(grid):
     
     stats = {}
     for building_type, count in zip(unique, counts):
-        building_type = int(building_type)
-        count = int(count)
-        stats[building_type] = {
-            'count': count,
-            'percentage': (count / total_cells) * 100
+        # Convert tensors to Python scalars
+        bt_val = int(building_type.item()) if hasattr(building_type, 'item') else int(building_type)
+        count_val = int(count.item()) if hasattr(count, 'item') else int(count)
+        stats[bt_val] = {
+            'count': count_val,
+            'percentage': (count_val / total_cells) * 100
         }
     
     return stats
