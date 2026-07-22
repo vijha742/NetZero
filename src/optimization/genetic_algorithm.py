@@ -316,116 +316,79 @@ class GeneticAlgorithm:
     def _crossover(self, parent1, parent2):
         """
         Create offspring by combining two parents.
-        
+
+        Uses 2D block crossover: a random axis-aligned rectangular block is
+        copied from parent2 into child1 (and vice-versa for child2).  This
+        preserves spatial neighbourhood structure — something row-based
+        single/multi-point crossover destroys.
+
         Args:
             parent1, parent2 (CityGrid): Parent grids
-            
+
         Returns:
             tuple: (child1, child2) offspring grids
         """
-        method = self.config['crossover_method']
-        
-        if method == 'single_point':
-            return self._single_point_crossover(parent1, parent2)
-        elif method == 'multi_point':
-            return self._multi_point_crossover(parent1, parent2)
-        elif method == 'uniform':
-            return self._uniform_crossover(parent1, parent2)
-        else:
-            raise ValueError(f"Unknown crossover method: {method}")
-    
-    def _single_point_crossover(self, parent1, parent2):
-        """Single-point crossover: Split at one point."""
+        crossover_prob = self.config.get('crossover_probability', 0.7)
+        if random.random() > crossover_prob:
+            return parent1.copy(), parent2.copy()
+        return self._block_crossover(parent1, parent2)
+
+    def _block_crossover(self, parent1, parent2):
+        """
+        2D block crossover: swap a random rectangular sub-grid between parents.
+
+        A random block of rows [r1, r2) and columns [c1, c2) is swapped.
+        The block covers 10–60 % of grid area, chosen uniformly.
+        """
         child1 = parent1.copy()
         child2 = parent2.copy()
-        
-        # Choose random split point
-        split_row = random.randint(1, self.grid_size - 1)
-        
-        # Swap bottom halves
-        child1.grid[split_row:, :] = parent2.grid[split_row:, :]
-        child2.grid[split_row:, :] = parent1.grid[split_row:, :]
-        
+
+        n = self.grid_size
+        # Random block boundaries
+        min_dim = max(2, n // 5)
+        r1 = random.randint(0, n - min_dim)
+        r2 = random.randint(r1 + min_dim, min(n, r1 + n // 2 + 1))
+        c1 = random.randint(0, n - min_dim)
+        c2 = random.randint(c1 + min_dim, min(n, c1 + n // 2 + 1))
+
+        # Swap the block
+        block1 = parent1.grid[r1:r2, c1:c2].copy()
+        block2 = parent2.grid[r1:r2, c1:c2].copy()
+        child1.grid[r1:r2, c1:c2] = block2
+        child2.grid[r1:r2, c1:c2] = block1
+
         return child1, child2
-    
-    def _multi_point_crossover(self, parent1, parent2):
-        """Multi-point crossover: Split at multiple points."""
-        child1 = parent1.copy()
-        child2 = parent2.copy()
-        
-        num_points = self.config['crossover_points']
-        
-        # Choose random split rows
-        split_rows = sorted(random.sample(range(1, self.grid_size), min(num_points, self.grid_size-1)))
-        
-        # Alternate between parents
-        swap = False
-        prev_row = 0
-        
-        for split_row in split_rows + [self.grid_size]:
-            if swap:
-                child1.grid[prev_row:split_row, :] = parent2.grid[prev_row:split_row, :]
-                child2.grid[prev_row:split_row, :] = parent1.grid[prev_row:split_row, :]
-            swap = not swap
-            prev_row = split_row
-        
-        return child1, child2
-    
-    def _uniform_crossover(self, parent1, parent2):
-        """Uniform crossover: Each cell has 50% chance from each parent."""
-        child1 = parent1.copy()
-        child2 = parent2.copy()
-        
-        # Random mask
-        mask = xp.random.rand(self.grid_size, self.grid_size) < 0.5
-        
-        child1.grid = xp.where(mask, parent1.grid, parent2.grid)
-        child2.grid = xp.where(mask, parent2.grid, parent1.grid)
-        
-        return child1, child2
-    
+
     def _mutate(self, city_grid):
         """
-        Apply mutation to a city grid.
-        
+        Apply point mutation to a city grid.
+
+        Each cell is independently mutated with probability `mutation_rate`.
+        A mutated cell has its building type changed to a random valid type
+        (drawn from the same weighted distribution used for initialization).
+        This explores the type-composition space rather than just swapping
+        positions (which leaves the type distribution invariant).
+
         Args:
             city_grid (CityGrid): Grid to mutate (modified in-place)
         """
         mutation_rate = self.config['mutation_rate']
-        method = self.config['mutation_method']
-        
-        if method == 'swap':
-            self._swap_mutation(city_grid, mutation_rate)
-        elif method == 'random':
-            self._random_mutation(city_grid, mutation_rate)
-        elif method == 'adaptive':
-            # Use current mutation rate (may have been adjusted)
-            self._swap_mutation(city_grid, mutation_rate)
-        else:
-            raise ValueError(f"Unknown mutation method: {method}")
+        self._point_mutation(city_grid, mutation_rate)
     
-    def _swap_mutation(self, city_grid, mutation_rate):
-        """Swap mutation: Swap random pairs of buildings."""
+    def _point_mutation(self, city_grid, mutation_rate):
+        """
+        Point mutation: each cell mutates independently with P = mutation_rate.
+
+        A mutated cell's building type is replaced by a new type drawn from the
+        same weighted distribution used during initialization, encouraging
+        exploration of the building-type composition space.
+        """
         grid_size = city_grid.size
-        num_mutations = int(grid_size * grid_size * mutation_rate)
-        
-        for _ in range(num_mutations):
-            # Choose two random cells
-            x1, y1 = random.randint(0, grid_size-1), random.randint(0, grid_size-1)
-            x2, y2 = random.randint(0, grid_size-1), random.randint(0, grid_size-1)
-            
-            # Swap
-            city_grid.swap_buildings(x1, y1, x2, y2)
-    
-    def _random_mutation(self, city_grid, mutation_rate):
-        """Random mutation: Change cells to random building types."""
-        grid_size = city_grid.size
-        num_mutations = int(grid_size * grid_size * mutation_rate)
-        
-        for _ in range(num_mutations):
-            x = random.randint(0, grid_size-1)
-            y = random.randint(0, grid_size-1)
-            city_grid.mutate_cell(x, y)
+        # Vectorized mask using numpy
+        mask = np.random.rand(grid_size, grid_size) < mutation_rate
+        mutation_coords = np.argwhere(mask)
+        for x, y in mutation_coords:
+            city_grid.mutate_cell(int(x), int(y))
     
     def _adjust_mutation_rate(self):
         """Adjust mutation rate if convergence stalls."""

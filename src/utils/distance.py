@@ -13,29 +13,37 @@ from .array_backend import xp
 def euclidean_distance(x1, y1, x2, y2):
     """
     Calculate Euclidean distance between two points.
-    
+
+    Always returns a plain Python float for scalar inputs so that
+    callers can compare directly with threshold values (e.g. dist <= 5.0).
+
     Args:
-        x1, y1: Coordinates of first point
+        x1, y1: Coordinates of first point (int, float, or numpy scalar)
         x2, y2: Coordinates of second point
-        
+
     Returns:
-        Distance between points
+        float: Euclidean distance
     """
-    return xp.sqrt((x2 - x1)**2 + (y2 - y1)**2)
+    import math
+    _s = lambda v: float(v) if not hasattr(v, 'shape') else float(v.item())
+    return math.sqrt((_s(x2) - _s(x1))**2 + (_s(y2) - _s(y1))**2)
 
 
 def manhattan_distance(x1, y1, x2, y2):
     """
     Calculate Manhattan (city block) distance between two points.
-    
+
+    Always returns a plain Python float for scalar inputs.
+
     Args:
         x1, y1: Coordinates of first point
         x2, y2: Coordinates of second point
-        
+
     Returns:
-        Manhattan distance
+        float: Manhattan distance
     """
-    return xp.abs(x2 - x1) + xp.abs(y2 - y1)
+    _s = lambda v: float(v) if not hasattr(v, 'shape') else float(v.item())
+    return abs(_s(x2) - _s(x1)) + abs(_s(y2) - _s(y1))
 
 
 def create_distance_matrix(grid_size, metric='euclidean'):

@@ -12,6 +12,17 @@ Hardware Profiles:
 """
 
 # ============================================================================
+# Normalization Scales (used by fitness.py to bound objectives to [0, 1])
+# ============================================================================
+# CARBON_SCALE: expected worst-case net_carbon for the largest supported grid (50×50).
+#   Approx 50×50 × ~10% coal density × 5000 carbon/cell = 625 000 → rounded to 500 000
+CARBON_SCALE = 500_000.0
+
+# COST_SCALE: expected worst-case total_cost for a 50×50 grid filled with solar farms.
+#   50×50 × ~3000 $/cell = 7 500 000
+COST_SCALE = 7_500_000.0
+
+# ============================================================================
 # Hardware Performance Profiles
 # ============================================================================
 HARDWARE_PROFILES = {
@@ -100,15 +111,16 @@ SA_CONFIG = {
 # Fitness Function Weights
 # ============================================================================
 FITNESS_WEIGHTS = {
-    # Primary objectives
-    "carbon": 1.0,                   # W1: Weight for carbon emissions (maximize negative)
+    # Primary objectives (all normalized to [0, 1] before weighting)
+    "carbon": 1.0,                   # W1: Weight for carbon reduction
     "happiness": 0.5,                # W2: Weight for happiness score
-    "cost": 0.3,                     # W3: Weight for cost (minimize)
-    
-    # Constraint penalties (applied as multipliers)
-    "hard_constraints": 1e6,         # Extreme penalty for invalid cities
-    "soft_constraints": 1.0,         # Weight for spatial constraint violations
-    
+    "cost": 0.3,                     # W3: Weight for cost minimization
+
+    # Constraint penalties
+    "hard_constraints": 1e6,         # Legacy key — not used (hard constraints → -inf)
+    "soft_constraints": 0.1,         # Weight for soft spatial constraint bonus/malus
+                                     # (capped at ±0.1 of total fitness)
+
     # Success criteria
     "target_carbon_ratio": 0.05,     # Target: <5% net carbon emissions
 }
