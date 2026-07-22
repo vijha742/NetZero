@@ -13,31 +13,39 @@ from .array_backend import xp
 def euclidean_distance(x1, y1, x2, y2):
     """
     Calculate Euclidean distance between two points.
-    
+
+    Always returns a plain Python float when given scalar inputs so that
+    callers can compare it directly with threshold values (e.g. dist <= 5.0)
+    without needing to call .item().
+
     Args:
-        x1, y1: Coordinates of first point
+        x1, y1: Coordinates of first point (int, float, or 0-d tensor)
         x2, y2: Coordinates of second point
-        
+
     Returns:
-        Distance between points (scalar or tensor)
+        float: Euclidean distance
     """
-    x1, y1, x2, y2 = [float(v) if not hasattr(v, 'shape') else v for v in [x1, y1, x2, y2]]
-    return xp.sqrt((x2 - x1)**2 + (y2 - y1)**2)
+    import math
+    _to_scalar = lambda v: float(v.item()) if hasattr(v, 'item') else float(v)
+    return math.sqrt((_to_scalar(x2) - _to_scalar(x1))**2 +
+                     (_to_scalar(y2) - _to_scalar(y1))**2)
 
 
 def manhattan_distance(x1, y1, x2, y2):
     """
     Calculate Manhattan (city block) distance between two points.
-    
+
+    Always returns a plain Python float for scalar inputs.
+
     Args:
         x1, y1: Coordinates of first point
         x2, y2: Coordinates of second point
-        
+
     Returns:
-        Manhattan distance (scalar or tensor)
+        float: Manhattan distance
     """
-    x1, y1, x2, y2 = [float(v) if not hasattr(v, 'shape') else v for v in [x1, y1, x2, y2]]
-    return xp.abs(x2 - x1) + xp.abs(y2 - y1)
+    _to_scalar = lambda v: float(v.item()) if hasattr(v, 'item') else float(v)
+    return abs(_to_scalar(x2) - _to_scalar(x1)) + abs(_to_scalar(y2) - _to_scalar(y1))
 
 
 def create_distance_matrix(grid_size, metric='euclidean'):

@@ -72,12 +72,14 @@ GA_CONFIG = {
     "elitism_count": 5,              # Top N solutions preserved unchanged
     
     # Crossover parameters
-    "crossover_method": "multi_point", # Options: "single_point", "multi_point", "uniform"
+    "crossover_method": "2d_block",  # Options: "2d_block" (recommended), "uniform"
+                                     # "single_point"/"multi_point" are aliases for 2d_block
     "crossover_probability": 0.7,    # Probability of crossover (vs cloning parent)
-    "crossover_points": 2,           # Number of crossover points for multi-point
-    
+    "crossover_points": 2,           # Kept for legacy compatibility
+
     # Mutation parameters
-    "mutation_method": "swap",       # Options: "swap", "random", "adaptive"
+    "mutation_method": "point",      # Options: "point" (recommended), "swap" (ablation)
+                                     # "random"/"adaptive" are aliases for point
     "mutation_rate": 0.05,           # Probability of mutating each cell (5%)
     "adaptive_mutation": True,       # Increase mutation if convergence stalls
     "mutation_rate_min": 0.02,       # Minimum mutation rate (adaptive)
@@ -128,6 +130,25 @@ HARD_CONSTRAINTS = {
     "min_population": None,          # Minimum population (set by user)
     "max_budget": None,              # Maximum budget (set by user)
     "energy_balance": True,          # Energy supply must >= demand
+}
+
+# ============================================================================
+# Fitness Normalization Scales
+# ============================================================================
+# These constants are used in fitness.py to normalize raw objective values
+# to [0, 1] before applying weights, ensuring all objectives are commensurate.
+#
+# CARBON_SCALE: upper-bound reference for |net_carbon|.
+#   Derived from: 50x50 grid × Coal plant density × carbon=5000 per plant.
+#   A fully coal-covered 50x50 = 2500 cells × 5000 = 12 500 000.  We use a
+#   realistic (not pathological) worst case of ~10% coal density: ~500 000.
+#
+# COST_SCALE: upper-bound reference for total_cost.
+#   Derived from: 50x50 grid × Solar farm density × cost=3000 per farm.
+#   Realistic upper bound ~7 500 000 (all solar) or mixed ~5 000 000.
+NORMALIZATION_SCALES = {
+    "carbon": 500_000.0,    # See fitness.CARBON_SCALE
+    "cost":   7_500_000.0,  # See fitness.COST_SCALE
 }
 
 # ============================================================================

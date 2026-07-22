@@ -150,12 +150,17 @@ class TorchArrayModule:
         raise NotImplementedError("ogrid: Only 2D [:n, :m] slicing supported")
     
     def sqrt(self, x):
-        """Square root."""
-        return torch.sqrt(x.to(dtype=DEFAULT_FLOAT_DTYPE))
+        """Square root — handles both torch tensors and plain Python scalars."""
+        if isinstance(x, torch.Tensor):
+            return torch.sqrt(x.to(dtype=DEFAULT_FLOAT_DTYPE))
+        import math
+        return math.sqrt(float(x))
     
     def abs(self, x):
-        """Absolute value."""
-        return torch.abs(x)
+        """Absolute value — handles both torch tensors and plain Python scalars."""
+        if isinstance(x, torch.Tensor):
+            return torch.abs(x)
+        return abs(float(x))
     
     def exp(self, x):
         """Exponential."""
